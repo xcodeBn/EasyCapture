@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name" translatable="false">EasyCapture</string>
+    
+    <!-- Main Screen -->
+    <string name="github_profile">GitHub Profile</string>
+    <string name="recording_status">Recording…</string>
+    <string name="ready_to_record">Ready to Record</string>
+    <string name="stop_recording">Stop Recording</string>
+    <string name="start_recording">Start Recording</string>
+    <string name="settings">Settings</string>
+    
+    <!-- Settings Bottom Sheet -->
+    <string name="recording_settings">Recording Settings</string>
+    <string name="quick_presets">Quick Presets</string>
+    <string name="custom_settings">Custom Settings</string>
+    <string name="resolution">Resolution</string>
+    <string name="recording_settings_desc">Recording Settings</string>
+</resources>
