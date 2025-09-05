@@ -15,4 +15,10 @@
     <string name="custom_settings">Configurações personalizadas</string>
     <string name="resolution">Resolução</string>
     <string name="recording_settings_desc">Configurações de gravação</string>
+    
+    <!-- Permission Dialog -->
+    <string name="permission_required">Permissão necessária</string>
+    <string name="mic_permission_message">Para gravar áudio com sua gravação de tela, permita o acesso ao microfone nas Configurações.</string>
+    <string name="go_to_settings">Ir para Configurações</string>
+    <string name="cancel">Cancelar</string>
 </resources>

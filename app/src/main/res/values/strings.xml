@@ -15,4 +15,10 @@
     <string name="custom_settings">Custom Settings</string>
     <string name="resolution">Resolution</string>
     <string name="recording_settings_desc">Recording Settings</string>
+    
+    <!-- Permission Dialog -->
+    <string name="permission_required">Permission Required</string>
+    <string name="mic_permission_message">To record audio with your screen recording, please allow microphone access in Settings.</string>
+    <string name="go_to_settings">Go to Settings</string>
+    <string name="cancel">Cancel</string>
 </resources>

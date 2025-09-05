@@ -63,9 +63,10 @@ class ScreenCaptureService : Service(), ScreenCaptureDataSource {
                     resultCode = it.getIntExtra("resultCode", -1)
                     data = it.getParcelableExtra("data")
                     val qualityString = it.getStringExtra("quality") ?: "MEDIUM"
+                    val micEnabled = it.getBooleanExtra("micEnabled", false)
                     val quality = parseQualityFromString(qualityString)
-                    android.util.Log.d("ScreenCapture", "Received START_RECORDING action with quality: $qualityString")
-                    startRecording(quality)
+                    android.util.Log.d("ScreenCapture", "Received START_RECORDING action with quality: $qualityString, mic: $micEnabled")
+                    startRecording(quality, micEnabled)
                     RecordingStateManager.setRecordingState(true)
                 }
                 ACTION_STOP_RECORDING -> {
@@ -85,7 +86,11 @@ class ScreenCaptureService : Service(), ScreenCaptureDataSource {
     }
 
     override fun startRecording(quality: RecordingQuality) {
-        android.util.Log.d("ScreenCapture", "startRecording called with quality: $quality")
+        startRecording(quality, false) // Default to no mic for compatibility
+    }
+    
+    fun startRecording(quality: RecordingQuality, micEnabled: Boolean) {
+        android.util.Log.d("ScreenCapture", "startRecording called with quality: $quality, mic: $micEnabled")
         val mediaProjectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         val intentData = data
         if (intentData == null) {
@@ -111,7 +116,9 @@ class ScreenCaptureService : Service(), ScreenCaptureDataSource {
         } else {
             MediaRecorder()
         }.apply {
-            setAudioSource(MediaRecorder.AudioSource.MIC)
+            if (micEnabled) {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+            }
             setVideoSource(MediaRecorder.VideoSource.SURFACE)
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             tempOutputFile = File(cacheDir, "temp_recording.mp4")
@@ -119,7 +126,9 @@ class ScreenCaptureService : Service(), ScreenCaptureDataSource {
             android.util.Log.d("ScreenCapture", "Recording to temp file: ${tempOutputFile!!.absolutePath}")
             setVideoSize(width, height)
             setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            if (micEnabled) {
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            }
             setVideoEncodingBitRate(quality.bitrate)
             setVideoFrameRate(quality.frameRate)
         }

@@ -15,4 +15,10 @@
     <string name="custom_settings">Paramètres personnalisés</string>
     <string name="resolution">Résolution</string>
     <string name="recording_settings_desc">Paramètres d\'enregistrement</string>
+    
+    <!-- Permission Dialog -->
+    <string name="permission_required">Permission requise</string>
+    <string name="mic_permission_message">Pour enregistrer l\'audio avec votre enregistrement d\'écran, veuillez autoriser l\'accès au microphone dans les Paramètres.</string>
+    <string name="go_to_settings">Aller aux Paramètres</string>
+    <string name="cancel">Annuler</string>
 </resources>

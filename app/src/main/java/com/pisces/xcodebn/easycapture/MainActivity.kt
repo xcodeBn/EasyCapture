@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.Settings
+import androidx.core.app.ActivityCompat
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
@@ -12,6 +14,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,11 +48,21 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.runtime.remember
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -66,6 +79,8 @@ import compose.icons.tablericons.PlayerStop
 import compose.icons.tablericons.Settings
 import compose.icons.tablericons.Video
 import compose.icons.tablericons.BrandGithub
+import compose.icons.tablericons.Microphone
+import compose.icons.tablericons.MicrophoneOff
 
 class MainActivity : ComponentActivity() {
 
@@ -91,8 +106,13 @@ class MainActivity : ComponentActivity() {
                 putExtra("resultCode", result.resultCode)
                 putExtra("data", result.data)
                 putExtra("quality", viewModel.uiState.value.selectedQuality.toString())
+                putExtra("micEnabled", viewModel.uiState.value.isMicEnabled)
             }
-            startForegroundService(startIntent)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(startIntent)
+            } else {
+                startService(startIntent)
+            }
             viewModel.onRecordEvent()
         }
     }
@@ -113,7 +133,10 @@ class MainActivity : ComponentActivity() {
                         onBitrateChange = viewModel::onBitrateChange,
                         onFrameRateChange = viewModel::onFrameRateChange,
                         onResolutionChange = viewModel::onResolutionChange,
-                        onPresetSelected = viewModel::onPresetSelected
+                        onPresetSelected = viewModel::onPresetSelected,
+                        onMicToggle = viewModel::onMicToggle,
+                        onPermissionDialogDismiss = viewModel::onDismissPermissionDialog,
+                        onOpenSettings = ::openAppSettings
                     )
                 }
             }
@@ -132,7 +155,12 @@ class MainActivity : ComponentActivity() {
         }
 
         val permissionsToRequest = mutableListOf<String>()
-        permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)
+        
+        // Only request mic permission if mic is enabled
+        if (viewModel.uiState.value.isMicEnabled) {
+            permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)
+        }
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
         }
@@ -147,13 +175,36 @@ class MainActivity : ComponentActivity() {
         if (allPermissionsGranted) {
             startMediaProjection()
         } else {
-            requestPermissionsLauncher.launch(permissionsToRequest.toTypedArray())
+            // Check if we should show rationale or if user permanently denied
+            val shouldShowRationale = permissionsToRequest.any { permission ->
+                ActivityCompat.shouldShowRequestPermissionRationale(this, permission)
+            }
+            
+            val micPermissionNeeded = permissionsToRequest.contains(Manifest.permission.RECORD_AUDIO)
+            val micPermissionDenied = micPermissionNeeded && 
+                ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
+            
+            if (!shouldShowRationale && micPermissionDenied) {
+                // User has permanently denied mic permission
+                viewModel.onShowPermissionDialog()
+            } else {
+                // Normal permission request
+                requestPermissionsLauncher.launch(permissionsToRequest.toTypedArray())
+            }
         }
     }
 
     private fun startMediaProjection() {
         val mediaProjectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         mediaProjectionLauncher.launch(mediaProjectionManager.createScreenCaptureIntent())
+    }
+    
+    private fun openAppSettings() {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", packageName, null)
+        }
+        startActivity(intent)
+        viewModel.onDismissPermissionDialog()
     }
 }
 
@@ -168,7 +219,10 @@ fun RecordingScreen(
     onBitrateChange: (Float) -> Unit,
     onFrameRateChange: (Float) -> Unit,
     onResolutionChange: (Int) -> Unit,
-    onPresetSelected: (RecordingQuality) -> Unit
+    onPresetSelected: (RecordingQuality) -> Unit,
+    onMicToggle: () -> Unit,
+    onPermissionDialogDismiss: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -197,20 +251,41 @@ fun RecordingScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(32.dp)
             ) {
-                // Recording Status Card
+                // Recording Status Card with Animation
+                val cardScale by animateFloatAsState(
+                    targetValue = if (uiState.isRecording) 1.02f else 1f,
+                    animationSpec = if (uiState.isRecording) {
+                        infiniteRepeatable(
+                            animation = tween(1000, easing = LinearEasing),
+                            repeatMode = RepeatMode.Reverse
+                        )
+                    } else {
+                        tween(300)
+                    },
+                    label = "cardScale"
+                )
+                
                 ElevatedCard(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .graphicsLayer(scaleX = cardScale, scaleY = cardScale),
                     shape = RoundedCornerShape(24.dp)
                 ) {
                     Column(
                         modifier = Modifier.padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        val iconColor by animateColorAsState(
+                            targetValue = if (uiState.isRecording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                            animationSpec = tween(500),
+                            label = "iconColor"
+                        )
+                        
                         Icon(
                             imageVector = if (uiState.isRecording) TablerIcons.Video else TablerIcons.DeviceDesktop,
                             contentDescription = null,
                             modifier = Modifier.size(64.dp),
-                            tint = if (uiState.isRecording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                            tint = iconColor
                         )
                         
                         Spacer(modifier = Modifier.height(16.dp))
@@ -221,10 +296,16 @@ fun RecordingScreen(
                         )
                         
                         if (uiState.isRecording) {
+                            val timerColor by animateColorAsState(
+                                targetValue = MaterialTheme.colorScheme.error,
+                                animationSpec = tween(500),
+                                label = "timerColor"
+                            )
+                            
                             Text(
                                 text = formatTime(uiState.recordingDurationSeconds),
                                 style = MaterialTheme.typography.displayMedium,
-                                color = MaterialTheme.colorScheme.error
+                                color = timerColor
                             )
                         }
                         
@@ -239,19 +320,50 @@ fun RecordingScreen(
                     }
                 }
                 
-                // Record Button
-                ExtendedFloatingActionButton(
-                    onClick = onRecordClick,
-                    icon = { 
-                        Icon(
-                            if (uiState.isRecording) TablerIcons.PlayerStop else TablerIcons.PlayerPlay,
-                            contentDescription = null
-                        ) 
-                    },
-                    text = { Text(if (uiState.isRecording) stringResource(R.string.stop_recording) else stringResource(R.string.start_recording)) },
-                    modifier = Modifier.size(width = 200.dp, height = 56.dp),
-                    shape = RoundedCornerShape(28.dp)
+                // Record Button with Mic Toggle
+                val buttonScale by animateFloatAsState(
+                    targetValue = if (uiState.isRecording) 0.95f else 1f,
+                    animationSpec = tween(200),
+                    label = "buttonScale"
                 )
+                
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.graphicsLayer(scaleX = buttonScale, scaleY = buttonScale)
+                ) {
+                    // Mic Toggle Button
+                    IconButton(
+                        onClick = onMicToggle,
+                        enabled = !uiState.isRecording,
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(
+                                color = if (uiState.isMicEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                                shape = RoundedCornerShape(28.dp)
+                            )
+                    ) {
+                        Icon(
+                            if (uiState.isMicEnabled) TablerIcons.Microphone else TablerIcons.MicrophoneOff,
+                            contentDescription = if (uiState.isMicEnabled) "Disable Microphone" else "Enable Microphone",
+                            tint = if (uiState.isMicEnabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    
+                    // Record Button
+                    ExtendedFloatingActionButton(
+                        onClick = onRecordClick,
+                        icon = { 
+                            Icon(
+                                if (uiState.isRecording) TablerIcons.PlayerStop else TablerIcons.PlayerPlay,
+                                contentDescription = null
+                            ) 
+                        },
+                        text = { Text(if (uiState.isRecording) stringResource(R.string.stop_recording) else stringResource(R.string.start_recording)) },
+                        modifier = Modifier.size(width = 200.dp, height = 56.dp),
+                        shape = RoundedCornerShape(28.dp)
+                    )
+                }
                 
                 // Settings Button
                 OutlinedButton(
@@ -281,6 +393,25 @@ fun RecordingScreen(
             onResolutionChange = onResolutionChange,
             onPresetSelected = onPresetSelected,
             bottomSheetState = bottomSheetState
+        )
+    }
+    
+    // Permission Dialog
+    if (uiState.showPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = onPermissionDialogDismiss,
+            title = { Text(stringResource(R.string.permission_required)) },
+            text = { Text(stringResource(R.string.mic_permission_message)) },
+            confirmButton = {
+                TextButton(onClick = onOpenSettings) {
+                    Text(stringResource(R.string.go_to_settings))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onPermissionDialogDismiss) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
         )
     }
 }

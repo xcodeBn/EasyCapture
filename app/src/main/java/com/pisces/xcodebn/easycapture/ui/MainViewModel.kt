@@ -27,7 +27,9 @@ data class MainUiState(
     val recordingDurationSeconds: Long = 0,
     val customBitrate: Float = 5f, // Mbps
     val customFrameRate: Float = 30f, // fps
-    val customResolutionIndex: Int = 1 // 0=720p, 1=1080p, 2=1440p, 3=4K
+    val customResolutionIndex: Int = 1, // 0=720p, 1=1080p, 2=1440p, 3=4K
+    val isMicEnabled: Boolean = false,
+    val showPermissionDialog: Boolean = false
 )
 
 class MainViewModel(
@@ -164,5 +166,17 @@ class MainViewModel(
             },
             selectedQuality = preset
         )
+    }
+    
+    fun onMicToggle() {
+        _uiState.value = _uiState.value.copy(isMicEnabled = !_uiState.value.isMicEnabled)
+    }
+    
+    fun onShowPermissionDialog() {
+        _uiState.value = _uiState.value.copy(showPermissionDialog = true)
+    }
+    
+    fun onDismissPermissionDialog() {
+        _uiState.value = _uiState.value.copy(showPermissionDialog = false)
     }
 }

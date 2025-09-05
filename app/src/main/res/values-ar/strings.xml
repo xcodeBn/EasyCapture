@@ -15,4 +15,10 @@
     <string name="custom_settings">إعدادات مخصصة</string>
     <string name="resolution">الدقة</string>
     <string name="recording_settings_desc">إعدادات التسجيل</string>
+    
+    <!-- Permission Dialog -->
+    <string name="permission_required">إذن مطلوب</string>
+    <string name="mic_permission_message">لتسجيل الصوت مع تسجيل الشاشة، يرجى السماح بالوصول إلى الميكروفون في الإعدادات.</string>
+    <string name="go_to_settings">الانتقال إلى الإعدادات</string>
+    <string name="cancel">إلغاء</string>
 </resources>
