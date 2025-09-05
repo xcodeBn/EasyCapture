@@ -1,7 +1,6 @@
 package com.pisces.xcodebn.easycapture.di
 
 import android.content.Context
-import com.pisces.xcodebn.easycapture.data.ScreenCaptureService
 import com.pisces.xcodebn.easycapture.data.local.SettingsLocalDataSource
 import com.pisces.xcodebn.easycapture.data.repository.RecordingRepositoryImpl
 import com.pisces.xcodebn.easycapture.domain.repository.RecordingRepository
@@ -60,8 +59,7 @@ class AppContainer(private val context: Context) {
             getSavedQualitySettingUseCase,
             saveQualitySettingUseCase,
             startRecordingUseCase,
-            stopRecordingUseCase,
-            context.applicationContext as android.app.Application
+            stopRecordingUseCase
         )
     }
 }

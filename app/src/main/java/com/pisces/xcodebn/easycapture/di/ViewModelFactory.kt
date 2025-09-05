@@ -1,6 +1,5 @@
 package com.pisces.xcodebn.easycapture.di
 
-import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.pisces.xcodebn.easycapture.domain.usecase.GetQualitySettingsUseCase
@@ -15,15 +14,13 @@ class ViewModelFactory(
     private val getSavedQualitySettingUseCase: GetSavedQualitySettingUseCase,
     private val saveQualitySettingUseCase: SaveQualitySettingUseCase,
     private val startRecordingUseCase: StartRecordingUseCase,
-    private val stopRecordingUseCase: StopRecordingUseCase,
-    private val application: Application
+    private val stopRecordingUseCase: StopRecordingUseCase
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(MainViewModel::class.java)) {
             return MainViewModel(
-                application,
                 getQualitySettingsUseCase,
                 getSavedQualitySettingUseCase,
                 saveQualitySettingUseCase,

@@ -27,7 +27,7 @@ sealed class RecordingQuality {
         override val resolution = "1440p"
     }
     
-    data class CUSTOM(
+    data class RecordingQualityConfig(
         override val displayName: String,
         override val bitrate: Int,
         override val frameRate: Int,

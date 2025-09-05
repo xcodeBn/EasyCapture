@@ -1,9 +1,7 @@
 package com.pisces.xcodebn.easycapture.ui
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.pisces.xcodebn.easycapture.EasyCaptureApplication
 import com.pisces.xcodebn.easycapture.data.RecordingStateManager
 import com.pisces.xcodebn.easycapture.domain.model.RecordingQuality
 import com.pisces.xcodebn.easycapture.domain.usecase.GetQualitySettingsUseCase
@@ -33,13 +31,12 @@ data class MainUiState(
 )
 
 class MainViewModel(
-    private val application: Application,
     private val getQualitySettingsUseCase: GetQualitySettingsUseCase,
     private val getSavedQualitySettingUseCase: GetSavedQualitySettingUseCase,
     private val saveQualitySettingUseCase: SaveQualitySettingUseCase,
     private val startRecordingUseCase: StartRecordingUseCase,
     private val stopRecordingUseCase: StopRecordingUseCase
-) : AndroidViewModel(application) {
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState = _uiState.asStateFlow()
@@ -52,12 +49,6 @@ class MainViewModel(
         observeRecordingState()
     }
 
-    fun onServiceStarted() {
-        android.util.Log.d("MainViewModel", "Service started, reinitializing repository...")
-        // Force reinitialization of repository with actual service
-        (application as EasyCaptureApplication).container.initializeRepository()
-    }
-    
     fun onRecordEvent() {
         android.util.Log.d("MainViewModel", "onRecordEvent called, isRecording: ${uiState.value.isRecording}")
         if (uiState.value.isRecording) {
@@ -92,7 +83,7 @@ class MainViewModel(
         val resolutions = listOf("720p", "1080p", "1440p", "4K")
         val resolution = resolutions[uiState.value.customResolutionIndex]
         
-        return RecordingQuality.CUSTOM(
+        return RecordingQuality.RecordingQualityConfig(
             displayName = "Custom ($resolution)",
             bitrate = (uiState.value.customBitrate * 1_000_000).toInt(),
             frameRate = uiState.value.customFrameRate.toInt(),
