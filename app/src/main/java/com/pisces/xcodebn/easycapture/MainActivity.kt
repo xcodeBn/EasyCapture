@@ -31,6 +31,10 @@ class MainActivity : ComponentActivity() {
         (application as EasyCaptureApplication).container.viewModelFactory
     }
 
+    private val prefs by lazy {
+        getSharedPreferences("permission_prefs", MODE_PRIVATE)
+    }
+
     private val requestPermissionsLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -98,12 +102,12 @@ class MainActivity : ComponentActivity() {
         }
 
         val permissionsToRequest = mutableListOf<String>()
-        
+
         // Only request mic permission if mic is enabled
         if (viewModel.uiState.value.isMicEnabled) {
             permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)
         }
-        
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
         }
@@ -118,21 +122,24 @@ class MainActivity : ComponentActivity() {
         if (allPermissionsGranted) {
             startMediaProjection()
         } else {
-            // Check if we should show rationale or if user permanently denied
-            val shouldShowRationale = permissionsToRequest.any { permission ->
-                ActivityCompat.shouldShowRequestPermissionRationale(this, permission)
-            }
-            
             val micPermissionNeeded = permissionsToRequest.contains(Manifest.permission.RECORD_AUDIO)
-            val micPermissionDenied = micPermissionNeeded && 
-                ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
-            
-            if (!shouldShowRationale && micPermissionDenied) {
-                // User has permanently denied mic permission
-                viewModel.onShowPermissionDialog()
-            } else {
-                // Normal permission request
-                requestPermissionsLauncher.launch(permissionsToRequest.toTypedArray())
+            if (micPermissionNeeded) {
+                val hasRequestedMicPermission = prefs.getBoolean("has_requested_mic_permission", false)
+                if (hasRequestedMicPermission) {
+                    val shouldShowRationale = ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.RECORD_AUDIO)
+                    if (!shouldShowRationale) {
+                        viewModel.onShowPermissionDialog()
+                        return // Stop here, don't proceed to requestPermissionsLauncher
+                    }
+                }
+            }
+
+            // Request permissions
+            requestPermissionsLauncher.launch(permissionsToRequest.toTypedArray())
+
+            // Mark that we have requested mic permission
+            if (micPermissionNeeded) {
+                prefs.edit().putBoolean("has_requested_mic_permission", true).apply()
             }
         }
     }
@@ -150,4 +157,3 @@ class MainActivity : ComponentActivity() {
         viewModel.onDismissPermissionDialog()
     }
 }
-

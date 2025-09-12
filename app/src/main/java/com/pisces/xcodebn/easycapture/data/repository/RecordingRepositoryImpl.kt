@@ -2,6 +2,7 @@ package com.pisces.xcodebn.easycapture.data.repository
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import com.pisces.xcodebn.easycapture.data.ScreenCaptureDataSource
 import com.pisces.xcodebn.easycapture.data.ScreenCaptureService
 import com.pisces.xcodebn.easycapture.data.local.SettingsLocalDataSource
@@ -21,7 +22,12 @@ class RecordingRepositoryImpl(
             action = ScreenCaptureService.ACTION_START_RECORDING
             putExtra("quality", quality.toString())
         }
-        context.startForegroundService(intent)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+        }
+        else {
+            context.startService(intent)
+        }
     }
 
     override fun stopRecording() {

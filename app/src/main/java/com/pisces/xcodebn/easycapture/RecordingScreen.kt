@@ -2,15 +2,23 @@ package com.pisces.xcodebn.easycapture
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,7 +38,6 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,16 +47,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.Canvas
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import kotlin.math.sin
-import kotlin.math.PI
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import com.pisces.xcodebn.easycapture.domain.model.RecordingQuality
 import com.pisces.xcodebn.easycapture.ui.MainUiState
 import compose.icons.TablerIcons
@@ -60,9 +67,10 @@ import compose.icons.tablericons.MicrophoneOff
 import compose.icons.tablericons.PlayerPlay
 import compose.icons.tablericons.PlayerStop
 import compose.icons.tablericons.Settings
-import compose.icons.tablericons.Video
+import kotlin.math.PI
+import kotlin.math.sin
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
 fun RecordingScreen(
     modifier: Modifier = Modifier,
@@ -78,6 +86,7 @@ fun RecordingScreen(
     onPermissionDialogDismiss: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
+    val haptics = LocalHapticFeedback.current
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
@@ -101,23 +110,23 @@ fun RecordingScreen(
     ) { innerPadding ->
         // Asymmetric layout with better spacing and hierarchy
         Box(
-            modifier = Modifier.Companion
+            modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
             Column(
-                modifier = Modifier.Companion
+                modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Top spacer for asymmetric positioning
-                Spacer(modifier = Modifier.Companion.height(32.dp))
-                
+                Spacer(modifier = Modifier.height(32.dp))
+
                 // Status section - positioned in upper third
                 Box(
-                    modifier = Modifier.Companion.weight(0.45f),
-                    contentAlignment = Alignment.Companion.Center
+                    modifier = Modifier.weight(0.45f),
+                    contentAlignment = Alignment.Center
                 ) {
                     // Recording Status Card with Animation
                     val cardScale by animateFloatAsState(
@@ -134,77 +143,101 @@ fun RecordingScreen(
                     )
 
                     ElevatedCard(
-                        modifier = Modifier.Companion
+                        modifier = Modifier
                             .graphicsLayer(scaleX = cardScale, scaleY = cardScale),
                         shape = RoundedCornerShape(28.dp)
                     ) {
-                    Column(
-                        modifier = Modifier.Companion.padding(24.dp),
-                        horizontalAlignment = Alignment.Companion.CenterHorizontally
-                    ) {
-                        val iconColor by animateColorAsState(
-                            targetValue = if (uiState.isRecording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                            animationSpec = tween(500),
-                            label = "iconColor"
-                        )
-
-                        Icon(
-                            imageVector = if (uiState.isRecording) TablerIcons.Video else TablerIcons.DeviceDesktop,
-                            contentDescription = null,
-                            modifier = Modifier.Companion.size(64.dp),
-                            tint = iconColor
-                        )
-
-                        Spacer(modifier = Modifier.Companion.height(16.dp))
-
-                        Text(
-                            text = if (uiState.isRecording) stringResource(R.string.recording_status) else stringResource(
-                                R.string.ready_to_record
-                            ),
-                            style = MaterialTheme.typography.headlineSmall
-                        )
-
-                        // Fixed height container for timer to maintain card size
-                        Box(
-                            modifier = Modifier.Companion.height(64.dp),
-                            contentAlignment = Alignment.Companion.Center
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             if (uiState.isRecording) {
-                                val timerColor by animateColorAsState(
-                                    targetValue = MaterialTheme.colorScheme.error,
-                                    animationSpec = tween(500),
-                                    label = "timerColor"
+                                RecordingIndicator(modifier = Modifier.size(64.dp))
+                            } else {
+                                val infiniteTransition = rememberInfiniteTransition(label = "infiniteTransition")
+                                val scale by infiniteTransition.animateFloat(
+                                    initialValue = 1f,
+                                    targetValue = 1.05f,
+                                    animationSpec = infiniteRepeatable(
+                                        animation = tween(1500, easing = LinearEasing),
+                                        repeatMode = RepeatMode.Reverse
+                                    ), label = "scale"
                                 )
-
-                                Text(
-                                    text = formatTime(uiState.recordingDurationSeconds),
-                                    style = MaterialTheme.typography.displayMedium,
-                                    color = timerColor
+                                Icon(
+                                    imageVector = TablerIcons.DeviceDesktop,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(64.dp).scale(scale),
+                                    tint = MaterialTheme.colorScheme.primary
                                 )
                             }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Text(
+                                text = if (uiState.isRecording) stringResource(R.string.recording_status) else stringResource(
+                                    R.string.ready_to_record
+                                ),
+                                style = MaterialTheme.typography.headlineSmall
+                            )
+
+                            // Fixed height container for timer to maintain card size
+                            Box(
+                                modifier = Modifier.height(64.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                AnimatedContent(
+                                    targetState = uiState.isRecording,
+                                    transitionSpec = {
+                                        if (targetState) {
+                                            (slideInVertically { height -> height } + fadeIn()).togetherWith(
+                                                slideOutVertically { height -> -height } + fadeOut()
+                                            )
+                                        } else {
+                                            (slideInVertically { height -> -height } + fadeIn()).togetherWith(
+                                                slideOutVertically { height -> height } + fadeOut()
+                                            )
+                                        }
+                                    },
+                                    label = "TimerAnimation"
+                                ) { isRecording ->
+                                    if (isRecording) {
+                                        val timerColor by animateColorAsState(
+                                            targetValue = MaterialTheme.colorScheme.error,
+                                            animationSpec = tween(500),
+                                            label = "timerColor"
+                                        )
+
+                                        Text(
+                                            text = formatTime(uiState.recordingDurationSeconds),
+                                            style = MaterialTheme.typography.displayMedium,
+                                            color = timerColor
+                                        )
+                                    } else {
+                                        // Keep the space when not recording
+                                        Box(modifier = Modifier.height(64.dp)) {}
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            val resolutions = listOf("720p", "1080p", "1440p", "4K")
+                            Text(
+                                text = "${resolutions[uiState.customResolutionIndex]} • ${uiState.customFrameRate.toInt()} fps • ${uiState.customBitrate.toInt()} Mbps",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-
-                        Spacer(modifier = Modifier.Companion.height(8.dp))
-
-                        val resolutions = listOf("720p", "1080p", "1440p", "4K")
-                        Text(
-                            text = "${resolutions[uiState.customResolutionIndex]} • ${uiState.customFrameRate.toInt()} fps • ${uiState.customBitrate.toInt()} Mbps",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                 }
-                
 
-                }
-                
                 // Controls section - bottom portion with better spacing
                 Box(
-                    modifier = Modifier.Companion.weight(0.55f),
-                    contentAlignment = Alignment.Companion.Center
+                    modifier = Modifier.weight(0.55f),
+                    contentAlignment = Alignment.Center
                 ) {
                     Column(
-                        horizontalAlignment = Alignment.Companion.CenterHorizontally,
+                        horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(28.dp)
                     ) {
                         // Record Button with Mic Toggle - more prominent positioning
@@ -216,7 +249,10 @@ fun RecordingScreen(
 
                         // Main record button - hero element
                         ExtendedFloatingActionButton(
-                            onClick = onRecordClick,
+                            onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onRecordClick()
+                            },
                             icon = {
                                 Icon(
                                     if (uiState.isRecording) TablerIcons.PlayerStop else TablerIcons.PlayerPlay,
@@ -230,22 +266,22 @@ fun RecordingScreen(
                                     )
                                 )
                             },
-                            modifier = Modifier.Companion
+                            modifier = Modifier
                                 .size(width = 220.dp, height = 64.dp)
                                 .graphicsLayer(scaleX = buttonScale, scaleY = buttonScale),
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(32.dp)
                         )
-                        
+
                         // Secondary controls row - mic and settings
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(20.dp),
-                            verticalAlignment = Alignment.Companion.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Mic Toggle Button 
+                            // Mic Toggle Button
                             IconButton(
                                 onClick = onMicToggle,
                                 enabled = !uiState.isRecording,
-                                modifier = Modifier.Companion
+                                modifier = Modifier
                                     .size(60.dp)
                                     .background(
                                         color = if (uiState.isMicEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
@@ -256,7 +292,7 @@ fun RecordingScreen(
                                     if (uiState.isMicEnabled) TablerIcons.Microphone else TablerIcons.MicrophoneOff,
                                     contentDescription = if (uiState.isMicEnabled) "Disable Microphone" else "Enable Microphone",
                                     tint = if (uiState.isMicEnabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.Companion.size(24.dp)
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
 
@@ -268,7 +304,7 @@ fun RecordingScreen(
                             ) {
                                 IconButton(
                                     onClick = onShowSettings,
-                                    modifier = Modifier.Companion
+                                    modifier = Modifier
                                         .size(60.dp)
                                         .background(
                                             color = MaterialTheme.colorScheme.surface,
@@ -278,7 +314,7 @@ fun RecordingScreen(
                                     Icon(
                                         TablerIcons.Settings,
                                         contentDescription = stringResource(R.string.recording_settings_desc),
-                                        modifier = Modifier.Companion.size(24.dp),
+                                        modifier = Modifier.size(24.dp),
                                         tint = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
@@ -286,9 +322,9 @@ fun RecordingScreen(
                         }
                     }
                 }
-                
+
                 // Bottom padding
-                Spacer(modifier = Modifier.Companion.height(24.dp))
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }
@@ -326,5 +362,71 @@ fun RecordingScreen(
     }
 }
 
+@Composable
+fun RecordingIndicator(
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.error
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "infinite-transition")
+
+    val outerCircleScale by infiniteTransition.animateFloat(
+        initialValue = 0.5f,
+        targetValue = 2.5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ), label = "outer-circle-scale"
+    )
+
+    val outerCircleAlpha by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ), label = "outer-circle-alpha"
+    )
+
+    Box(modifier = modifier.size(64.dp), contentAlignment = Alignment.Center) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawCircle(
+                color = color.copy(alpha = outerCircleAlpha),
+                radius = size.minDimension / 4 * outerCircleScale
+            )
+            drawCircle(
+                color = color,
+                radius = size.minDimension / 4
+            )
+        }
+    }
+}
 
 
+@Composable
+fun SineWave(
+    modifier: Modifier = Modifier,
+    amplitude: Float = 20f,
+    frequency: Float = 1f,
+    phase: Float = 0f,
+    color: Color = MaterialTheme.colorScheme.primary
+) {
+    Canvas(modifier = modifier) {
+        val path = Path()
+        val width = size.width
+        val height = size.height
+        val mid = height / 2
+
+        path.moveTo(0f, mid)
+
+        for (x in 0..width.toInt()) {
+            val y = mid + amplitude * sin((2 * PI * frequency * x / width) + phase)
+            path.lineTo(x.toFloat(), y.toFloat())
+        }
+
+        drawPath(
+            path = path,
+            color = color,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
+        )
+    }
+}

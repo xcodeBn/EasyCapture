@@ -157,6 +157,13 @@ class ScreenCaptureService : Service(), ScreenCaptureDataSource {
             android.util.Log.d("ScreenCapture", "Recording started successfully!")
         } catch (e: Exception) {
             android.util.Log.e("ScreenCapture", "Failed to start recording: ${e.message}")
+            // Clean up temp file if recording failed to start
+            tempOutputFile?.let { file ->
+                if (file.exists() && file.length() == 0L) {
+                    file.delete()
+                    android.util.Log.d("ScreenCapture", "Deleted empty temp file after recording failure")
+                }
+            }
             stopRecording()
         }
     }
@@ -194,6 +201,13 @@ class ScreenCaptureService : Service(), ScreenCaptureDataSource {
 
     private fun saveVideoToGallery(tempFile: File) {
         try {
+            // Check if temp file is valid and has content
+            if (!tempFile.exists() || tempFile.length() == 0L) {
+                android.util.Log.w("ScreenCapture", "Temp file is empty or doesn't exist, skipping gallery save")
+                tempFile.delete()
+                return
+            }
+            
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
             val filename = "EasyCapture_$timestamp.mp4"
             
@@ -217,6 +231,8 @@ class ScreenCaptureService : Service(), ScreenCaptureDataSource {
             }
         } catch (e: Exception) {
             android.util.Log.e("ScreenCapture", "Failed to save video to gallery: ${e.message}")
+            // Clean up temp file even if save failed
+            tempFile.delete()
         }
     }
     
