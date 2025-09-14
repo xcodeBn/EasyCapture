@@ -3,14 +3,13 @@ package com.pisces.xcodebn.easycapture.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pisces.xcodebn.easycapture.data.RecordingStateManager
+import com.pisces.xcodebn.easycapture.data.ScreenCaptureService
 import com.pisces.xcodebn.easycapture.domain.model.RecordingQuality
 import com.pisces.xcodebn.easycapture.domain.usecase.GetQualitySettingsUseCase
 import com.pisces.xcodebn.easycapture.domain.usecase.GetSavedQualitySettingUseCase
 import com.pisces.xcodebn.easycapture.domain.usecase.SaveQualitySettingUseCase
 import com.pisces.xcodebn.easycapture.domain.usecase.StartRecordingUseCase
 import com.pisces.xcodebn.easycapture.domain.usecase.StopRecordingUseCase
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
@@ -40,13 +39,12 @@ class MainViewModel(
 
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState = _uiState.asStateFlow()
-    
-    private var timerJob: Job? = null
 
     init {
         loadQualitySettings()
         observeSavedQuality()
         observeRecordingState()
+        syncWithService()
     }
 
     fun onRecordEvent() {
@@ -61,23 +59,6 @@ class MainViewModel(
         }
     }
     
-    private fun startTimer() {
-        RecordingStateManager.updateDuration(0)
-        timerJob = viewModelScope.launch {
-            var seconds = 0L
-            while (RecordingStateManager.isRecording.value) {
-                delay(1000)
-                seconds++
-                RecordingStateManager.updateDuration(seconds)
-            }
-        }
-    }
-    
-    private fun stopTimer() {
-        timerJob?.cancel()
-        timerJob = null
-        RecordingStateManager.updateDuration(0)
-    }
     
     private fun createCustomQualityFromSettings(): RecordingQuality {
         val resolutions = listOf("720p", "1080p", "1440p", "4K")
@@ -106,11 +87,6 @@ class MainViewModel(
     private fun observeRecordingState() {
         RecordingStateManager.isRecording.onEach { isRecording ->
             _uiState.value = _uiState.value.copy(isRecording = isRecording)
-            if (isRecording) {
-                startTimer()
-            } else {
-                stopTimer()
-            }
         }.launchIn(viewModelScope)
         
         RecordingStateManager.recordingDuration.onEach { duration ->
@@ -169,5 +145,16 @@ class MainViewModel(
     
     fun onDismissPermissionDialog() {
         _uiState.value = _uiState.value.copy(showPermissionDialog = false)
+    }
+    
+    private fun syncWithService() {
+        // If service is running, sync the current duration
+        val service = ScreenCaptureService.instance as? ScreenCaptureService
+        service?.let {
+            val currentDuration = it.getCurrentElapsedSeconds()
+            if (currentDuration > 0) {
+                RecordingStateManager.updateDuration(currentDuration)
+            }
+        }
     }
 }

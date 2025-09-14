@@ -9,12 +9,7 @@ class EasyCaptureApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        instance = this
         container = AppContainer(this)
     }
 
-    companion object {
-        lateinit var instance: EasyCaptureApplication
-            private set
-    }
 }

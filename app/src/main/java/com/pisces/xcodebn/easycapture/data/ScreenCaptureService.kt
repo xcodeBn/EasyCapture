@@ -26,6 +26,11 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class ScreenCaptureService : Service(), ScreenCaptureDataSource {
 
@@ -37,6 +42,11 @@ class ScreenCaptureService : Service(), ScreenCaptureDataSource {
     private var data: Intent? = null
     private var tempOutputFile: File? = null
     private lateinit var notificationHandler: NotificationHandler
+    
+    // Timer tracking
+    private var recordingStartTime: Long = 0
+    private var timerJob: Job? = null
+    private val serviceScope = CoroutineScope(Dispatchers.Main)
 
     override fun onCreate() {
         super.onCreate()
@@ -82,6 +92,7 @@ class ScreenCaptureService : Service(), ScreenCaptureDataSource {
 
     override fun onDestroy() {
         super.onDestroy()
+        stopTimer()
         instance = null
     }
 
@@ -155,6 +166,10 @@ class ScreenCaptureService : Service(), ScreenCaptureDataSource {
             android.util.Log.d("ScreenCapture", "Starting MediaRecorder...")
             mediaRecorder?.start()
             android.util.Log.d("ScreenCapture", "Recording started successfully!")
+            
+            // Start timer tracking
+            recordingStartTime = System.currentTimeMillis()
+            startTimer()
         } catch (e: Exception) {
             android.util.Log.e("ScreenCapture", "Failed to start recording: ${e.message}")
             // Clean up temp file if recording failed to start
@@ -169,6 +184,9 @@ class ScreenCaptureService : Service(), ScreenCaptureDataSource {
     }
 
     override fun stopRecording() {
+        // Stop timer
+        stopTimer()
+        
         try {
             mediaRecorder?.stop()
             android.util.Log.d("ScreenCapture", "Recording stopped successfully")
@@ -242,6 +260,30 @@ class ScreenCaptureService : Service(), ScreenCaptureDataSource {
             "MEDIUM" -> RecordingQuality.MEDIUM  
             "HIGH" -> RecordingQuality.HIGH
             else -> RecordingQuality.MEDIUM
+        }
+    }
+    
+    private fun startTimer() {
+        timerJob = serviceScope.launch {
+            while (true) {
+                val elapsedSeconds = (System.currentTimeMillis() - recordingStartTime) / 1000
+                RecordingStateManager.updateDuration(elapsedSeconds)
+                delay(1000)
+            }
+        }
+    }
+    
+    private fun stopTimer() {
+        timerJob?.cancel()
+        timerJob = null
+        RecordingStateManager.updateDuration(0)
+    }
+    
+    fun getCurrentElapsedSeconds(): Long {
+        return if (recordingStartTime > 0) {
+            (System.currentTimeMillis() - recordingStartTime) / 1000
+        } else {
+            0
         }
     }
 
